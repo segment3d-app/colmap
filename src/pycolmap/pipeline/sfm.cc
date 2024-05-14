@@ -14,7 +14,6 @@
 #include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/stl_bind.h>
 
 using namespace colmap;
 using namespace pybind11::literals;
@@ -101,7 +100,8 @@ void BundleAdjustment(const std::shared_ptr<Reconstruction>& reconstruction,
 
 void BindSfM(py::module& m) {
   using MapperOpts = IncrementalMapperOptions;
-  auto PyMapperOpts = py::class_<MapperOpts>(m, "IncrementalPipelineOptions");
+  auto PyMapperOpts = py::class_<MapperOpts, std::shared_ptr<MapperOpts>>(
+      m, "IncrementalPipelineOptions");
   PyMapperOpts.def(py::init<>())
       .def_readwrite(
           "min_num_matches",
@@ -249,7 +249,10 @@ void BindSfM(py::module& m) {
                      &MapperOpts::triangulation,
                      "Options of the IncrementalTriangulator.")
       .def("get_mapper", &MapperOpts::Mapper)
-      .def("get_triangulation", &MapperOpts::Triangulation);
+      .def("get_triangulation", &MapperOpts::Triangulation)
+      .def("get_local_bundle_adjustment", &MapperOpts::LocalBundleAdjustment)
+      .def("get_global_bundle_adjustment", &MapperOpts::GlobalBundleAdjustment)
+      .def("is_initial_pair_provided", &MapperOpts::IsInitialPairProvided);
   MakeDataclass(PyMapperOpts);
   auto mapper_options = PyMapperOpts().cast<MapperOpts>();
 
@@ -260,39 +263,10 @@ void BindSfM(py::module& m) {
           .value("SOFT_L1", BAOpts::LossFunctionType::SOFT_L1)
           .value("CAUCHY", BAOpts::LossFunctionType::CAUCHY);
   AddStringToEnumConstructor(PyBALossFunctionType);
-  using CSOpts = ceres::Solver::Options;
-  auto PyCeresSolverOptions =
-      py::class_<CSOpts>(
-          m,
-          "CeresSolverOptions",
-          // If ceres::Solver::Options is registered by pycolmap AND a
-          // downstream library, importing the downstream library results in
-          // error:
-          //   ImportError: generic_type: type "CeresSolverOptions" is already
-          //   registered!
-          // Adding a `py::module_local()` fixes this.
-          // https://github.com/pybind/pybind11/issues/439#issuecomment-1338251822
-          py::module_local())
-          .def(py::init<>())
-          .def_readwrite("function_tolerance", &CSOpts::function_tolerance)
-          .def_readwrite("gradient_tolerance", &CSOpts::gradient_tolerance)
-          .def_readwrite("parameter_tolerance", &CSOpts::parameter_tolerance)
-          .def_readwrite("minimizer_progress_to_stdout",
-                         &CSOpts::minimizer_progress_to_stdout)
-          .def_readwrite("minimizer_progress_to_stdout",
-                         &CSOpts::minimizer_progress_to_stdout)
-          .def_readwrite("max_num_iterations", &CSOpts::max_num_iterations)
-          .def_readwrite("max_linear_solver_iterations",
-                         &CSOpts::max_linear_solver_iterations)
-          .def_readwrite("max_num_consecutive_invalid_steps",
-                         &CSOpts::max_num_consecutive_invalid_steps)
-          .def_readwrite("max_consecutive_nonmonotonic_steps",
-                         &CSOpts::max_consecutive_nonmonotonic_steps)
-          .def_readwrite("num_threads", &CSOpts::num_threads);
-  MakeDataclass(PyCeresSolverOptions);
   auto PyBundleAdjustmentOptions =
       py::class_<BAOpts>(m, "BundleAdjustmentOptions")
           .def(py::init<>())
+          .def("create_loss_function", &BAOpts::CreateLossFunction)
           .def_readwrite("loss_function_type",
                          &BAOpts::loss_function_type,
                          "Loss function types: Trivial (non-robust) and Cauchy "
@@ -324,9 +298,11 @@ void BindSfM(py::module& m) {
                          "single-threaded is typically better for small bundle "
                          "adjustment problems "
                          "due to the overhead of threading. ")
-          .def_readwrite("solver_options",
-                         &BAOpts::solver_options,
-                         "Ceres-Solver options.");
+          .def_readwrite(
+              "solver_options",
+              &BAOpts::solver_options,
+              "Ceres-Solver options. To be able to use this feature "
+              "one needs to install pyceres and import it beforehand. ");
   MakeDataclass(PyBundleAdjustmentOptions);
   auto ba_options = PyBundleAdjustmentOptions().cast<BAOpts>();
 

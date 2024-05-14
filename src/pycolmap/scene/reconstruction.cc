@@ -9,6 +9,7 @@
 #include "colmap/util/types.h"
 
 #include "pycolmap/pybind11_extension.h"
+#include "pycolmap/scene/types.h"
 
 #include <memory>
 #include <sstream>
@@ -77,13 +78,18 @@ void BindReconstruction(py::module& m) {
       .def_property_readonly("images",
                              &Reconstruction::Images,
                              py::return_value_policy::reference_internal)
+      .def("image", py::overload_cast<image_t>(&Reconstruction::Image))
       .def_property_readonly("image_pairs", &Reconstruction::ImagePairs)
+      .def("image_pair",
+           py::overload_cast<image_pair_t>(&Reconstruction::ImagePair))
       .def_property_readonly("cameras",
                              &Reconstruction::Cameras,
                              py::return_value_policy::reference_internal)
+      .def("camera", py::overload_cast<camera_t>(&Reconstruction::Camera))
       .def_property_readonly("points3D",
                              &Reconstruction::Points3D,
                              py::return_value_policy::reference_internal)
+      .def("point3D", py::overload_cast<point3D_t>(&Reconstruction::Point3D))
       .def("point3D_ids", &Reconstruction::Point3DIds)
       .def("reg_image_ids", &Reconstruction::RegImageIds)
       .def("exists_camera", &Reconstruction::ExistsCamera)
@@ -146,6 +152,10 @@ void BindReconstruction(py::module& m) {
       .def(
           "normalize",
           &Reconstruction::Normalize,
+          "extent"_a = 10.0,
+          "p0"_a = 0.1,
+          "p1"_a = 0.9,
+          "use_images"_a = true,
           "Normalize scene by scaling and translation to avoid degenerate\n"
           "visualization after bundle adjustment and to improve numerical\n"
           "stability of algorithms.\n\n"
