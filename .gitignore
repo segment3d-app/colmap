@@ -7,7 +7,6 @@ src/colmap/util/version.cc
 .vscode
 .vs
 .DS_Store
-build*/
 install-debug/
 install-release/
 data/
